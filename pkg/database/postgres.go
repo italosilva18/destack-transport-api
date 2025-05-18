@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/seu-usuario/destack-transport-api/configs"
-	"github.com/seu-usuario/destack-transport-api/pkg/logger"
+	"github.com/italosilva18/destack-transport-api/configs"
+	"github.com/italosilva18/destack-transport-api/pkg/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
