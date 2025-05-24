@@ -44,6 +44,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	protected.Use(middlewares.AuthMiddleware())
 
 	// Rotas protegidas
+	setupEmpresaRoutes(protected, db)
 	setupCTeRoutes(protected, db)
 	setupMDFeRoutes(protected, db)
 	setupUploadRoutes(protected, db)

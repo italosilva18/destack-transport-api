@@ -1,19 +1,21 @@
-// internal/api/handlers/empresa/empresa_handler.go
 package empresa
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/italosilva18/destack-transport-api/internal/models"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
 )
 
 // EmpresaHandler contém os handlers para empresas
 type EmpresaHandler struct {
 	db     *gorm.DB
-	logger logger.Logger
+	logger zerolog.Logger
 }
 
 // NewEmpresaHandler cria uma nova instância de EmpresaHandler
@@ -26,11 +28,27 @@ func NewEmpresaHandler(db *gorm.DB) *EmpresaHandler {
 
 // CreateEmpresaRequest representa os dados para criar uma empresa
 type CreateEmpresaRequest struct {
-	CNPJ         *string `json:"cnpj" binding:"omitempty"`
-	CPF          *string `json:"cpf" binding:"omitempty"`
+	CNPJ         *string `json:"cnpj" binding:"omitempty,len=14"`
+	CPF          *string `json:"cpf" binding:"omitempty,len=11"`
 	RazaoSocial  string  `json:"razao_social" binding:"required"`
 	NomeFantasia *string `json:"nome_fantasia"`
 	UF           string  `json:"uf" binding:"required,len=2"`
+}
+
+// UpdateEmpresaRequest representa os dados para atualizar uma empresa
+type UpdateEmpresaRequest struct {
+	RazaoSocial  string  `json:"razao_social"`
+	NomeFantasia *string `json:"nome_fantasia"`
+	UF           string  `json:"uf" binding:"omitempty,len=2"`
+}
+
+// ListEmpresasRequest representa os parâmetros para listar empresas
+type ListEmpresasRequest struct {
+	Page    int    `form:"page" binding:"omitempty,min=1"`
+	Limit   int    `form:"limit" binding:"omitempty,min=1,max=100"`
+	Search  string `form:"search" binding:"omitempty"`
+	UF      string `form:"uf" binding:"omitempty,len=2"`
+	TipoDoc string `form:"tipo_doc" binding:"omitempty,oneof=CNPJ CPF"`
 }
 
 // CreateEmpresa cria uma nova empresa
@@ -41,33 +59,32 @@ func (h *EmpresaHandler) CreateEmpresa(c *gin.Context) {
 		return
 	}
 
-	// Validar que pelo menos um dos campos CNPJ ou CPF foi preenchido
+	// Validar que tem CNPJ ou CPF
 	if req.CNPJ == nil && req.CPF == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "É necessário informar CNPJ ou CPF"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "CNPJ ou CPF é obrigatório"})
 		return
 	}
 
-	// Verificar se já existe empresa com mesmo CNPJ ou CPF
+	// Verificar duplicidade
+	var count int64
+	query := h.db.Model(&models.Empresa{})
 	if req.CNPJ != nil {
-		var count int64
-		h.db.Model(&models.Empresa{}).Where("cnpj = ?", req.CNPJ).Count(&count)
-		if count > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Já existe uma empresa com este CNPJ"})
-			return
-		}
+		query = query.Where("cnpj = ?", *req.CNPJ)
+	} else {
+		query = query.Where("cpf = ?", *req.CPF)
+	}
+	query.Count(&count)
+
+	if count > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Empresa já cadastrada"})
+		return
 	}
 
-	if req.CPF != nil {
-		var count int64
-		h.db.Model(&models.Empresa{}).Where("cpf = ?", req.CPF).Count(&count)
-		if count > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Já existe uma empresa com este CPF"})
-			return
-		}
-	}
-
-	// Criar a empresa
+	// Criar empresa
 	empresa := models.Empresa{
+		BaseModel: models.BaseModel{
+			ID: uuid.New(),
+		},
 		CNPJ:         req.CNPJ,
 		CPF:          req.CPF,
 		RazaoSocial:  req.RazaoSocial,
@@ -82,30 +99,6 @@ func (h *EmpresaHandler) CreateEmpresa(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, empresa)
-}
-
-// GetEmpresa obtém uma empresa pelo ID
-func (h *EmpresaHandler) GetEmpresa(c *gin.Context) {
-	id := c.Param("id")
-
-	var empresa models.Empresa
-	result := h.db.First(&empresa, "id = ?", id)
-	if result.Error != nil {
-		h.logger.Error().Err(result.Error).Str("id", id).Msg("Empresa não encontrada")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Empresa não encontrada"})
-		return
-	}
-
-	c.JSON(http.StatusOK, empresa)
-}
-
-// UpdateEmpresaRequest representa os dados para atualizar uma empresa
-type UpdateEmpresaRequest struct {
-	CNPJ         *string `json:"cnpj"`
-	CPF          *string `json:"cpf"`
-	RazaoSocial  string  `json:"razao_social"`
-	NomeFantasia *string `json:"nome_fantasia"`
-	UF           string  `json:"uf" binding:"omitempty,len=2"`
 }
 
 // UpdateEmpresa atualiza uma empresa existente
@@ -126,36 +119,8 @@ func (h *EmpresaHandler) UpdateEmpresa(c *gin.Context) {
 		return
 	}
 
-	// Verificar CNPJ único
-	if req.CNPJ != nil && *req.CNPJ != *empresa.CNPJ {
-		var count int64
-		h.db.Model(&models.Empresa{}).Where("cnpj = ? AND id != ?", req.CNPJ, id).Count(&count)
-		if count > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Já existe uma empresa com este CNPJ"})
-			return
-		}
-	}
-
-	// Verificar CPF único
-	if req.CPF != nil && *req.CPF != *empresa.CPF {
-		var count int64
-		h.db.Model(&models.Empresa{}).Where("cpf = ? AND id != ?", req.CPF, id).Count(&count)
-		if count > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Já existe uma empresa com este CPF"})
-			return
-		}
-	}
-
-	// Atualizar campos
+	// Preparar atualizações
 	updates := map[string]interface{}{}
-
-	if req.CNPJ != nil {
-		updates["cnpj"] = req.CNPJ
-	}
-
-	if req.CPF != nil {
-		updates["cpf"] = req.CPF
-	}
 
 	if req.RazaoSocial != "" {
 		updates["razao_social"] = req.RazaoSocial
@@ -169,13 +134,14 @@ func (h *EmpresaHandler) UpdateEmpresa(c *gin.Context) {
 		updates["uf"] = req.UF
 	}
 
+	// Aplicar atualizações
 	if err := h.db.Model(&empresa).Updates(updates).Error; err != nil {
 		h.logger.Error().Err(err).Str("id", id).Msg("Erro ao atualizar empresa")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar empresa"})
 		return
 	}
 
-	// Recarregar a empresa com os dados atualizados
+	// Buscar empresa atualizada
 	h.db.First(&empresa, "id = ?", id)
 
 	c.JSON(http.StatusOK, empresa)
@@ -193,12 +159,14 @@ func (h *EmpresaHandler) DeleteEmpresa(c *gin.Context) {
 		return
 	}
 
-	// Verificar se a empresa está sendo usada em outros registros
+	// Verificar se existem CT-es ou MDF-es vinculados
 	var countCTEs int64
-	h.db.Model(&models.CTE{}).Where("emitente_id = ? OR remetente_id = ? OR destinatario_id = ?", id, id, id).Count(&countCTEs)
+	h.db.Model(&models.CTE{}).Where("emitente_id = ? OR destinatario_id = ? OR remetente_id = ?", id, id, id).Count(&countCTEs)
 
 	if countCTEs > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Não é possível excluir esta empresa pois ela está associada a CT-es"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Empresa possui documentos fiscais vinculados e não pode ser excluída",
+		})
 		return
 	}
 
@@ -211,14 +179,57 @@ func (h *EmpresaHandler) DeleteEmpresa(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Empresa excluída com sucesso"})
 }
 
-// ListEmpresasRequest representa os parâmetros para listar empresas
-type ListEmpresasRequest struct {
-	Page       int    `form:"page" binding:"omitempty,min=1"`
-	Limit      int    `form:"limit" binding:"omitempty,min=1,max=100"`
-	UF         string `form:"uf" binding:"omitempty,len=2"`
-	CNPJ       string `form:"cnpj" binding:"omitempty"`
-	CPF        string `form:"cpf" binding:"omitempty"`
-	SearchText string `form:"search_text" binding:"omitempty"`
+// GetEmpresa obtém uma empresa pelo ID
+func (h *EmpresaHandler) GetEmpresa(c *gin.Context) {
+	id := c.Param("id")
+
+	var empresa models.Empresa
+	result := h.db.First(&empresa, "id = ?", id)
+	if result.Error != nil {
+		h.logger.Error().Err(result.Error).Str("id", id).Msg("Empresa não encontrada")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Empresa não encontrada"})
+		return
+	}
+
+	// Buscar estatísticas relacionadas
+	var stats struct {
+		TotalCTEsEmitidos  int64      `json:"total_ctes_emitidos"`
+		TotalCTEsRecebidos int64      `json:"total_ctes_recebidos"`
+		ValorTotalEmitido  float64    `json:"valor_total_emitido"`
+		ValorTotalRecebido float64    `json:"valor_total_recebido"`
+		UltimaMovimentacao *time.Time `json:"ultima_movimentacao"`
+	}
+
+	// Total de CT-es emitidos
+	h.db.Model(&models.CTE{}).Where("emitente_id = ?", id).Count(&stats.TotalCTEsEmitidos)
+
+	// Total de CT-es recebidos
+	h.db.Model(&models.CTE{}).Where("destinatario_id = ?", id).Count(&stats.TotalCTEsRecebidos)
+
+	// Valor total emitido
+	h.db.Model(&models.CTE{}).
+		Where("emitente_id = ?", id).
+		Select("COALESCE(SUM(valor_total), 0)").
+		Scan(&stats.ValorTotalEmitido)
+
+	// Valor total recebido
+	h.db.Model(&models.CTE{}).
+		Where("destinatario_id = ?", id).
+		Select("COALESCE(SUM(valor_total), 0)").
+		Scan(&stats.ValorTotalRecebido)
+
+	// Última movimentação
+	var ultimoCTE models.CTE
+	if err := h.db.Where("emitente_id = ? OR destinatario_id = ?", id, id).
+		Order("data_emissao DESC").
+		First(&ultimoCTE).Error; err == nil {
+		stats.UltimaMovimentacao = &ultimoCTE.DataEmissao
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"empresa":      empresa,
+		"estatisticas": stats,
+	})
 }
 
 // ListEmpresas lista as empresas com filtros e paginação
@@ -246,21 +257,20 @@ func (h *EmpresaHandler) ListEmpresas(c *gin.Context) {
 	query := h.db.Model(&models.Empresa{})
 
 	// Aplicar filtros
+	if req.Search != "" {
+		searchWildcard := "%" + req.Search + "%"
+		query = query.Where("razao_social ILIKE ? OR nome_fantasia ILIKE ? OR cnpj LIKE ? OR cpf LIKE ?",
+			searchWildcard, searchWildcard, req.Search, req.Search)
+	}
+
 	if req.UF != "" {
 		query = query.Where("uf = ?", req.UF)
 	}
 
-	if req.CNPJ != "" {
-		query = query.Where("cnpj LIKE ?", "%"+req.CNPJ+"%")
-	}
-
-	if req.CPF != "" {
-		query = query.Where("cpf LIKE ?", "%"+req.CPF+"%")
-	}
-
-	if req.SearchText != "" {
-		searchWildcard := "%" + req.SearchText + "%"
-		query = query.Where("razao_social LIKE ? OR nome_fantasia LIKE ?", searchWildcard, searchWildcard)
+	if req.TipoDoc == "CNPJ" {
+		query = query.Where("cnpj IS NOT NULL")
+	} else if req.TipoDoc == "CPF" {
+		query = query.Where("cpf IS NOT NULL")
 	}
 
 	// Contar total para paginação
@@ -288,4 +298,62 @@ func (h *EmpresaHandler) ListEmpresas(c *gin.Context) {
 			"last_page":    (total + int64(limit) - 1) / int64(limit),
 		},
 	})
+}
+
+// SearchEmpresas busca empresas para autocomplete
+func (h *EmpresaHandler) SearchEmpresas(c *gin.Context) {
+	query := c.Query("q")
+	if query == "" || len(query) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query deve ter pelo menos 2 caracteres"})
+		return
+	}
+
+	tipo := c.Query("tipo") // emitente, destinatario, remetente
+	limit := 10
+
+	var empresas []models.Empresa
+	searchWildcard := "%" + query + "%"
+
+	dbQuery := h.db.Select("id", "cnpj", "cpf", "razao_social", "nome_fantasia", "uf").
+		Where("razao_social ILIKE ? OR nome_fantasia ILIKE ? OR cnpj LIKE ? OR cpf LIKE ?",
+			searchWildcard, searchWildcard, query, query).
+		Limit(limit)
+
+	// Filtrar por tipo se especificado
+	if tipo != "" {
+		// Aqui podemos adicionar lógica específica se necessário
+		// Por exemplo, filtrar apenas empresas que já foram emitentes
+	}
+
+	if err := dbQuery.Find(&empresas).Error; err != nil {
+		h.logger.Error().Err(err).Msg("Erro ao buscar empresas")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar empresas"})
+		return
+	}
+
+	// Formatar resposta para autocomplete
+	var results []gin.H
+	for _, empresa := range empresas {
+		doc := ""
+		if empresa.CNPJ != nil {
+			doc = *empresa.CNPJ
+		} else if empresa.CPF != nil {
+			doc = *empresa.CPF
+		}
+
+		label := empresa.RazaoSocial
+		if doc != "" {
+			label += " - " + doc
+		}
+
+		results = append(results, gin.H{
+			"id":           empresa.ID,
+			"label":        label,
+			"razao_social": empresa.RazaoSocial,
+			"documento":    doc,
+			"uf":           empresa.UF,
+		})
+	}
+
+	c.JSON(http.StatusOK, results)
 }

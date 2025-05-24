@@ -9,13 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/italosilva18/destack-transport-api/internal/models"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
 )
 
 // DashboardHandler contém os handlers para o dashboard
 type DashboardHandler struct {
 	db     *gorm.DB
-	logger logger.Logger
+	logger zerolog.Logger
 }
 
 // NewDashboardHandler cria uma nova instância de DashboardHandler
@@ -140,7 +141,6 @@ func (h *DashboardHandler) getPeriodDates(periodo, dataInicioStr, dataFimStr str
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
-		// Continuação do método getPeriodDates no dashboard_handler.go
 		// Ajustar hora final para o final do dia
 		dataFim = time.Date(dataFim.Year(), dataFim.Month(), dataFim.Day(), 23, 59, 59, 0, dataFim.Location())
 		return dataInicio, dataFim, nil

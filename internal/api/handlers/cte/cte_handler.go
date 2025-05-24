@@ -7,13 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/italosilva18/destack-transport-api/internal/models"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
 )
 
 // CTEHandler contém os handlers para CTEs
 type CTEHandler struct {
 	db     *gorm.DB
-	logger logger.Logger
+	logger zerolog.Logger
 }
 
 // NewCTEHandler cria uma nova instância de CTEHandler

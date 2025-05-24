@@ -7,13 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/italosilva18/destack-transport-api/internal/models"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
 )
 
 // MDFEHandler contém os handlers para MDFEs
 type MDFEHandler struct {
 	db     *gorm.DB
-	logger logger.Logger
+	logger zerolog.Logger
 }
 
 // NewMDFEHandler cria uma nova instância de MDFEHandler

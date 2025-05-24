@@ -8,13 +8,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/italosilva18/destack-transport-api/internal/models"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
 )
 
 // FinanceiroHandler contém os handlers relacionados ao financeiro
 type FinanceiroHandler struct {
 	db     *gorm.DB
-	logger logger.Logger
+	logger zerolog.Logger
 }
 
 // NewFinanceiroHandler cria uma nova instância de FinanceiroHandler

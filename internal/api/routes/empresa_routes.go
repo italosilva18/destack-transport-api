@@ -1,4 +1,3 @@
-// internal/api/routes/empresa_routes.go
 package routes
 
 import (
@@ -7,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// setupEmpresaRoutes configura as rotas de empresas
+// setupEmpresaRoutes configura as rotas de empresa
 func setupEmpresaRoutes(router *gin.RouterGroup, db *gorm.DB) {
 	// Criar handler de empresa
 	empresaHandler := empresa.NewEmpresaHandler(db)
@@ -17,6 +16,7 @@ func setupEmpresaRoutes(router *gin.RouterGroup, db *gorm.DB) {
 	{
 		empresaRoutes.POST("", empresaHandler.CreateEmpresa)
 		empresaRoutes.GET("", empresaHandler.ListEmpresas)
+		empresaRoutes.GET("/search", empresaHandler.SearchEmpresas)
 		empresaRoutes.GET("/:id", empresaHandler.GetEmpresa)
 		empresaRoutes.PUT("/:id", empresaHandler.UpdateEmpresa)
 		empresaRoutes.DELETE("/:id", empresaHandler.DeleteEmpresa)

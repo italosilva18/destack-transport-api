@@ -8,13 +8,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/italosilva18/destack-transport-api/internal/models"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
 )
 
 // ManutencaoHandler contém os handlers para manutenções
 type ManutencaoHandler struct {
 	db     *gorm.DB
-	logger logger.Logger
+	logger zerolog.Logger
 }
 
 // NewManutencaoHandler cria uma nova instância de ManutencaoHandler
