@@ -1,0 +1,73 @@
+version: '3.8'
+
+# Docker Compose para desenvolvimento
+# Use com: docker-compose -f docker-compose.dev.yml up
+
+services:
+  # Banco de dados PostgreSQL
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: destack-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: destack_transport
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./scripts/init-db-docker.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - destack-dev-network
+
+  # PGAdmin para desenvolvimento
+  pgadmin-dev:
+    image: dpage/pgadmin4:latest
+    container_name: destack-pgadmin-dev
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@destack.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+    depends_on:
+      - postgres-dev
+    networks:
+      - destack-dev-network
+
+  # Redis para desenvolvimento
+  redis-dev:
+    image: redis:7-alpine
+    container_name: destack-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - destack-dev-network
+
+  # Mailhog para testar emails
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: destack-mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    networks:
+      - destack-dev-network
+
+networks:
+  destack-dev-network:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+  pgadmin_dev_data:
+  redis_dev_data:

@@ -36,13 +36,46 @@ docker:
 	@echo "Building Docker image..."
 	@docker build -t $(APP_NAME) .
 
-docker-compose:
-	@echo "Starting services with Docker Compose..."
-	@docker-compose up --build
+docker-up:
+	@echo "Starting all services with Docker..."
+	@docker-compose up -d
 
-docker-compose-down:
-	@echo "Stopping Docker Compose services..."
+docker-down:
+	@echo "Stopping all services..."
 	@docker-compose down
+
+docker-restart:
+	@echo "Restarting all services..."
+	@docker-compose restart
+
+docker-logs:
+	@echo "Showing logs..."
+	@docker-compose logs -f
+
+docker-build:
+	@echo "Building services..."
+	@docker-compose build --no-cache
+
+docker-dev:
+	@echo "Starting development environment..."
+	@docker-compose -f docker-compose.dev.yml up -d
+
+docker-dev-down:
+	@echo "Stopping development environment..."
+	@docker-compose -f docker-compose.dev.yml down
+
+docker-clean:
+	@echo "Cleaning Docker resources..."
+	@docker-compose down -v
+	@docker system prune -f
+
+docker-shell:
+	@echo "Opening shell in API container..."
+	@docker-compose exec api sh
+
+docker-db-shell:
+	@echo "Opening PostgreSQL shell..."
+	@docker-compose exec postgres psql -U postgres -d destack_transport
 
 # Dependências
 deps:

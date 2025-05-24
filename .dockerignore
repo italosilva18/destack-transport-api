@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+LICENSE
+docs/
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files (copiar manualmente se necessário)
+.env
+.env.local
+.env.*.local
+
+# Test files
+*_test.go
+coverage.out
+coverage.html
+
+# Build artifacts
+tmp/
+dist/
+build/
+*.exe
+destack-api
+
+# Logs
+logs/
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+docker/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Vendor (será reconstruído no container)
+vendor/

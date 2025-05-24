@@ -1,12 +1,20 @@
-FROM golang:1.20-alpine AS builder
+# Build stage
+FROM golang:1.23-alpine AS builder
 
-# Instalar dependências
-RUN apk update && apk add --no-cache git
+# Instalar dependências de build
+RUN apk update && apk add --no-cache \
+    git \
+    ca-certificates \
+    tzdata \
+    && update-ca-certificates
+
+# Criar usuário não-root
+RUN adduser -D -g '' appuser
 
 # Configurar diretório de trabalho
-WORKDIR /app
+WORKDIR /build
 
-# Copiar arquivos go.mod e go.sum
+# Copiar arquivos de dependências
 COPY go.mod go.sum ./
 
 # Baixar dependências
@@ -16,21 +24,36 @@ RUN go mod download
 COPY . .
 
 # Compilar aplicação
-RUN CGO_ENABLED=0 GOOS=linux go build -o destack-api ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o destack-api ./cmd/server
 
-# Imagem final
-FROM alpine:3.17
+# Final stage
+FROM scratch
 
-RUN apk --no-cache add ca-certificates tzdata
+# Copiar certificados SSL
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
-WORKDIR /root/
+# Copiar usuário não-root
+COPY --from=builder /etc/passwd /etc/passwd
 
-# Copiar o binário compilado
-COPY --from=builder /app/destack-api .
-COPY app.env .
+# Copiar binário
+COPY --from=builder /build/destack-api /app/destack-api
+
+# Criar diretório de logs
+WORKDIR /app
+
+# Usar usuário não-root
+USER appuser
 
 # Expor porta
 EXPOSE 8080
 
-# Comando para iniciar a aplicação
-CMD ["./destack-api"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/app/destack-api", "health"] || exit 1
+
+# Comando para iniciar
+ENTRYPOINT ["/app/destack-api"]
