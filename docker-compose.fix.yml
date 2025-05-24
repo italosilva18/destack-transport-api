@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: destack-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: destack_transport
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      TZ: America/Sao_Paulo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d destack_transport"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - destack-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: destack-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Usar arquivo .env diretamente
+    env_file:
+      - .env
+    # Sobrescrever variáveis específicas para Docker
+    environment:
+      - DB_HOST=postgres
+      - ENVIRONMENT=production
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      - ./app.env:/app/app.env:ro  # Montar app.env como read-only
+    networks:
+      - destack-network
+
+networks:
+  destack-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

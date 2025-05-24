@@ -30,10 +30,12 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o destack-api ./cmd/server
 
 # Final stage
-FROM scratch
+FROM alpine:3.18
 
-# Copiar certificados SSL
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Instalar ca-certificates e bash
+RUN apk --no-cache add ca-certificates bash
+
+# Copiar certificados SSL e timezone
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 # Copiar usuário não-root
@@ -41,6 +43,10 @@ COPY --from=builder /etc/passwd /etc/passwd
 
 # Copiar binário
 COPY --from=builder /build/destack-api /app/destack-api
+
+# Copiar script de entrada
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Criar diretório de logs
 WORKDIR /app
@@ -56,4 +62,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["/app/destack-api", "health"] || exit 1
 
 # Comando para iniciar
-ENTRYPOINT ["/app/destack-api"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
