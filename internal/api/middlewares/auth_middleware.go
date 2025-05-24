@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/italosilva18/destack-transport-api/configs"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
 )
 
@@ -29,8 +30,16 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// TODO: Implementar a verificação do token JWT
-		// Este é um exemplo básico, você deve obter a chave secreta das configurações
+		// Carregar configurações
+		config, err := configs.LoadConfig(".")
+		if err != nil {
+			log.Error().Err(err).Msg("Erro ao carregar configurações no middleware")
+			c.JSON(500, gin.H{"error": "Internal server error"})
+			c.Abort()
+			return
+		}
+
+		// Verificar o token JWT
 		tokenString := parts[1]
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			// Verificar o método de assinatura
@@ -38,8 +47,8 @@ func AuthMiddleware() gin.HandlerFunc {
 				return nil, jwt.ErrSignatureInvalid
 			}
 
-			// TODO: Obter chave secreta das configurações
-			return []byte("sua_chave_secreta"), nil
+			// Retornar a chave secreta das configurações
+			return []byte(config.JWTSecret), nil
 		})
 
 		if err != nil {
@@ -54,6 +63,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			// Adicionar claims ao contexto
 			c.Set("user_id", claims["user_id"])
 			c.Set("user_role", claims["role"])
+			c.Set("username", claims["username"])
 			c.Next()
 		} else {
 			c.JSON(401, gin.H{"error": "Invalid token claims"})
