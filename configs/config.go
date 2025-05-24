@@ -1,6 +1,9 @@
 package configs
 
 import (
+	"os"
+	"strconv"
+
 	"github.com/spf13/viper"
 )
 
@@ -25,34 +28,71 @@ type DBConfig struct {
 
 // LoadConfig carrega as configurações do arquivo ou variáveis de ambiente
 func LoadConfig(path string) (config Config, err error) {
+	// Priorizar variáveis de ambiente
+	viper.AutomaticEnv()
+
+	// Tentar ler arquivo de configuração se existir
 	viper.AddConfigPath(path)
 	viper.SetConfigName("app")
 	viper.SetConfigType("env")
 
-	viper.AutomaticEnv()
-
-	err = viper.ReadInConfig()
-	// Ignorar erro se o arquivo de configuração não existir
-	if err != nil {
+	// Se o arquivo existir, ler dele
+	if err := viper.ReadInConfig(); err != nil {
+		// Se não existir arquivo, usar apenas variáveis de ambiente
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return
+			// Se for outro erro, retornar
+			return config, err
 		}
 	}
 
+	// Unmarshal das configurações
 	err = viper.Unmarshal(&config)
+	if err != nil {
+		return config, err
+	}
+
+	// Verificar variáveis de ambiente diretamente se estiverem vazias
+	if config.DBConfig.Host == "" {
+		config.DBConfig.Host = os.Getenv("DB_HOST")
+	}
+	if config.DBConfig.Port == "" {
+		config.DBConfig.Port = os.Getenv("DB_PORT")
+	}
+	if config.DBConfig.User == "" {
+		config.DBConfig.User = os.Getenv("DB_USER")
+	}
+	if config.DBConfig.Password == "" {
+		config.DBConfig.Password = os.Getenv("DB_PASSWORD")
+	}
+	if config.DBConfig.DBName == "" {
+		config.DBConfig.DBName = os.Getenv("DB_NAME")
+	}
+	if config.DBConfig.SSLMode == "" {
+		config.DBConfig.SSLMode = os.Getenv("DB_SSLMODE")
+	}
 
 	// Valores padrão
 	if config.ServerPort == "" {
 		config.ServerPort = "8080"
 	}
-
 	if config.Environment == "" {
 		config.Environment = "development"
 	}
-
 	if config.JWTExpiresIn == 0 {
-		config.JWTExpiresIn = 24 // 24 horas
+		jwtExp := os.Getenv("JWT_EXPIRES_IN")
+		if jwtExp != "" {
+			if exp, err := strconv.Atoi(jwtExp); err == nil {
+				config.JWTExpiresIn = exp
+			} else {
+				config.JWTExpiresIn = 24
+			}
+		} else {
+			config.JWTExpiresIn = 24
+		}
+	}
+	if config.JWTSecret == "" {
+		config.JWTSecret = os.Getenv("JWT_SECRET")
 	}
 
-	return
+	return config, nil
 }
