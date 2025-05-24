@@ -41,6 +41,12 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 # Copiar usuário não-root
 COPY --from=builder /etc/passwd /etc/passwd
 
+# Criar diretório da aplicação e dar permissões
+RUN mkdir -p /app && chown appuser:appuser /app
+
+# Mudar para o diretório da aplicação
+WORKDIR /app
+
 # Copiar binário
 COPY --from=builder /build/destack-api /app/destack-api
 
@@ -48,8 +54,8 @@ COPY --from=builder /build/destack-api /app/destack-api
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Criar diretório de logs
-WORKDIR /app
+# Dar permissão ao usuário appuser
+RUN chown -R appuser:appuser /app
 
 # Usar usuário não-root
 USER appuser
