@@ -154,6 +154,7 @@ func (suite *APITestSuite) TestAuthFlow() {
 }
 
 // TestCTECRUD testa as operações CRUD de CT-e
+// TestCTECRUD testa as operações CRUD de CT-e
 func (suite *APITestSuite) TestCTECRUD() {
 	// Criar empresas necessárias
 	emitente := models.Empresa{
@@ -180,11 +181,11 @@ func (suite *APITestSuite) TestCTECRUD() {
 			DataEmissao: time.Now(),
 			Status:      "100",
 			ValorTotal:  1500.50,
-			EmitenteID:  emitente.ID.String(),
+			EmitenteID:  emitente.ID, // Corrigido - removido .String()
 			UFInicio:    "SP",
 			UFDestino:   "RJ",
 		},
-		DestinatarioID:  destinatario.ID.String(),
+		DestinatarioID:  destinatario.ID, // Corrigido - removido .String()
 		CFOP:            "5353",
 		ModalidadeFrete: "CIF",
 	}

@@ -17,7 +17,62 @@ import (
 	"github.com/italosilva18/destack-transport-api/pkg/database/seeds"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
 	"gorm.io/gorm"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+// @title Destack Transport API
+// @version 1.0
+// @description API REST para gerenciamento de documentos fiscais de transporte (CT-e e MDF-e)
+// @description Sistema completo para controle de conhecimentos de transporte eletrônico e manifestos de documentos fiscais
+
+// @contact.name Suporte Destack
+// @contact.url https://destack.com.br/suporte
+// @contact.email suporte@destack.com.br
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8080
+// @BasePath /api
+
+// @securityDefinitions.apikey Bearer
+// @in header
+// @name Authorization
+// @description Digite "Bearer" seguido de um espaço e o token JWT
+
+// @schemes http https
+
+// @tag.name Autenticação
+// @tag.description Endpoints para autenticação e gestão de sessões
+
+// @tag.name CT-e
+// @tag.description Gerenciamento de Conhecimentos de Transporte Eletrônico
+
+// @tag.name MDF-e
+// @tag.description Gerenciamento de Manifestos Eletrônicos de Documentos Fiscais
+
+// @tag.name Empresas
+// @tag.description Cadastro e gestão de empresas (emitentes, destinatários, etc.)
+
+// @tag.name Veículos
+// @tag.description Cadastro e gestão de veículos
+
+// @tag.name Manutenções
+// @tag.description Controle de manutenções de veículos
+
+// @tag.name Dashboard
+// @tag.description Dados e métricas para painéis
+
+// @tag.name Financeiro
+// @tag.description Relatórios e análises financeiras
+
+// @tag.name Geográfico
+// @tag.description Análises geográficas e rotas
+
+// @tag.name Upload
+// @tag.description Upload e processamento de arquivos XML
 
 func main() {
 	// Inicializar o logger
@@ -65,6 +120,12 @@ func main() {
 
 	// Configurar rotas
 	routes.SetupRoutes(router, db)
+
+	// Configurar Swagger
+	if config.Environment != "production" {
+		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		log.Info().Msg("Documentação Swagger disponível em: http://localhost:" + config.ServerPort + "/swagger/index.html")
+	}
 
 	// Configurar servidor HTTP
 	server := &http.Server{
