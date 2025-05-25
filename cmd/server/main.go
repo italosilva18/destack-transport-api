@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,15 +16,10 @@ import (
 	"github.com/italosilva18/destack-transport-api/pkg/database"
 	"github.com/italosilva18/destack-transport-api/pkg/database/seeds"
 	"github.com/italosilva18/destack-transport-api/pkg/logger"
+	"gorm.io/gorm"
 )
 
 func main() {
-	// Verificar se é apenas health check
-	if len(os.Args) > 1 && os.Args[1] == "health" {
-		checkHealth()
-		return
-	}
-
 	// Inicializar o logger
 	logger.InitLogger()
 	log := logger.GetLogger()
@@ -40,11 +36,8 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Aguardar banco de dados ficar disponível (importante para Docker)
-	waitForDatabase(config.DBConfig)
-
-	// Inicializar conexão com o banco de dados
-	db, err := database.InitDB(config.DBConfig)
+	// Aguardar banco de dados ficar disponível com backoff exponencial
+	db, err := waitForDatabaseWithBackoff(config.DBConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Não foi possível conectar ao banco de dados")
 	}
@@ -57,8 +50,8 @@ func main() {
 	}
 
 	// Executar seeds se necessário
-	if config.Environment == "development" {
-		log.Info().Msg("Executando seeds de desenvolvimento...")
+	if config.Environment == "development" || shouldRunSeeds() {
+		log.Info().Msg("Executando seeds...")
 		if err := seeds.SeedUsers(db); err != nil {
 			log.Error().Err(err).Msg("Erro ao executar seed de usuários")
 		}
@@ -119,47 +112,42 @@ func main() {
 	log.Info().Msg("Servidor parado com sucesso")
 }
 
-// waitForDatabase aguarda o banco de dados ficar disponível
-func waitForDatabase(config configs.DBConfig) {
+// waitForDatabaseWithBackoff aguarda o banco com backoff exponencial
+func waitForDatabaseWithBackoff(config configs.DBConfig) (*gorm.DB, error) {
 	log := logger.GetLogger()
-	maxRetries := 30
-	retryInterval := 2 * time.Second
+
+	maxRetries := 10
+	baseDelay := 1 * time.Second
+	maxDelay := 30 * time.Second
 
 	for i := 0; i < maxRetries; i++ {
+		log.Info().Msgf("Tentando conectar ao banco de dados... tentativa %d/%d", i+1, maxRetries)
+
 		db, err := database.InitDB(config)
 		if err == nil {
+			// Testar a conexão
 			sqlDB, err := db.DB()
 			if err == nil {
 				err = sqlDB.Ping()
 				if err == nil {
-					sqlDB.Close()
-					log.Info().Msg("Banco de dados está disponível")
-					return
+					log.Info().Msg("Conexão com banco de dados estabelecida com sucesso!")
+					return db, nil
 				}
 			}
 		}
 
-		log.Warn().Msgf("Aguardando banco de dados... tentativa %d/%d", i+1, maxRetries)
-		time.Sleep(retryInterval)
+		// Calcular delay com backoff exponencial
+		delay := time.Duration(math.Min(float64(baseDelay)*math.Pow(2, float64(i)), float64(maxDelay)))
+		log.Warn().Err(err).Msgf("Tentativa %d falhou. Aguardando %v antes de tentar novamente...", i+1, delay)
+
+		time.Sleep(delay)
 	}
 
-	log.Fatal().Msg("Tempo limite excedido aguardando o banco de dados")
+	return nil, fmt.Errorf("não foi possível conectar ao banco de dados após %d tentativas", maxRetries)
 }
 
-// checkHealth verifica se a API está respondendo
-func checkHealth() {
-	resp, err := http.Get("http://localhost:8080/health")
-	if err != nil {
-		fmt.Println("API não está respondendo")
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		fmt.Println("API está saudável")
-		os.Exit(0)
-	} else {
-		fmt.Println("API retornou status não saudável")
-		os.Exit(1)
-	}
+// shouldRunSeeds verifica se deve executar seeds
+func shouldRunSeeds() bool {
+	// Verificar variável de ambiente
+	return os.Getenv("RUN_SEEDS") == "true"
 }

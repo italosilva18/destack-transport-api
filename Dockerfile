@@ -33,7 +33,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 FROM alpine:3.18
 
 # Instalar ca-certificates e bash
-RUN apk --no-cache add ca-certificates bash
+RUN apk --no-cache add ca-certificates bash curl
 
 # Copiar certificados SSL e timezone
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
@@ -42,7 +42,7 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/passwd /etc/passwd
 
 # Criar diretório da aplicação e dar permissões
-RUN mkdir -p /app && chown appuser:appuser /app
+RUN mkdir -p /app/logs /app/uploads && chown -R appuser:appuser /app
 
 # Mudar para o diretório da aplicação
 WORKDIR /app
@@ -50,12 +50,8 @@ WORKDIR /app
 # Copiar binário
 COPY --from=builder /build/destack-api /app/destack-api
 
-# Copiar script de entrada
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
 # Dar permissão ao usuário appuser
-RUN chown -R appuser:appuser /app
+RUN chown appuser:appuser /app/destack-api
 
 # Usar usuário não-root
 USER appuser
@@ -65,7 +61,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/app/destack-api", "health"] || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Comando para iniciar
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/destack-api"]

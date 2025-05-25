@@ -9,19 +9,20 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-destack_transport}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: destack_transport
       POSTGRES_INITDB_ARGS: "-E UTF8"
       TZ: America/Sao_Paulo
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./scripts/init-db-docker.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-destack_transport}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U postgres -d destack_transport"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     networks:
       - destack-network
 
@@ -38,17 +39,18 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - SERVER_PORT=8080
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - DB_NAME=${DB_NAME:-destack_transport}
-      - DB_SSLMODE=disable
-      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_here_change_in_production}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24}
-      - TZ=America/Sao_Paulo
+      # Usar variáveis de ambiente diretamente
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: destack_transport
+      DB_SSLMODE: disable
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here_change_in_production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24}
+      TZ: America/Sao_Paulo
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
@@ -61,121 +63,10 @@ services:
       retries: 3
       start_period: 40s
 
-  # PGAdmin (opcional - para gerenciamento do banco)
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: destack-pgadmin
-    restart: unless-stopped
-    ports:
-      - "5050:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@destack.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    networks:
-      - destack-network
-    profiles:
-      - tools
-
-  # Redis (para cache e filas futuras)
-  redis:
-    image: redis:7-alpine
-    container_name: destack-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
-    volumes:
-      - redis_data:/data
-    networks:
-      - destack-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    profiles:
-      - cache
-
-  # Nginx (proxy reverso - opcional)
-  nginx:
-    image: nginx:alpine
-    container_name: destack-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
-      - nginx_logs:/var/log/nginx
-    depends_on:
-      - api
-    networks:
-      - destack-network
-    profiles:
-      - production
-
-  # Prometheus (monitoramento - opcional)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: destack-prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    networks:
-      - destack-network
-    profiles:
-      - monitoring
-
-  # Grafana (dashboards - opcional)
-  grafana:
-    image: grafana/grafana:latest
-    container_name: destack-grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      - prometheus
-    networks:
-      - destack-network
-    profiles:
-      - monitoring
-
 networks:
   destack-network:
     driver: bridge
 
 volumes:
   postgres_data:
-    driver: local
-  pgadmin_data:
-    driver: local
-  redis_data:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
-  nginx_logs:
     driver: local
